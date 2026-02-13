@@ -5,6 +5,8 @@
 用法：python run_extraction.py --worklist extracted_content/Inspur/worklist.json [--min-size 120]
       或：python run_extraction.py --extracted-dir extracted_content/Inspur [--min-size 120]
 """
+# -*- coding: utf-8 -*-
+
 import argparse
 import json
 import os

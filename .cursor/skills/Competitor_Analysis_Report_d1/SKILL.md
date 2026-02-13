@@ -41,6 +41,7 @@ step 2. 运行抽取脚本, 抽取原始文件的内容，包括文字和图片.
 step 3. 根据 output_define.md 的要求，形成目标文档. 目标文档以中文为主，**版式与样式须符合 output_define.md 的文档风格定义**. 采用**两段式撰写**，避免在写 docx 时再次压缩内容：
 -迭代1（两段式）. **【撰写前必须先通读全部抽取文本】** 写草稿前，必须先**逐一阅读** `extracted_content/<竞品名>/text/` 下的**全部** .md 文件（可结合 references 下该竞品的 docs_input.md 理解每份文档用途），不得只读 1～2 个文件或只读开头几段就动笔；与大纲某章节明显相关的段落必须读到并考虑是否写入草稿。**禁止敷衍阅读**：仅扫一眼目录或前几段即开始写，会导致内容单薄、遗漏来源，视为未达标。
 -迭代1（两段式）续. **① 先写详细 markdown 草稿**：在完成上述通读后，按 output_define 的大纲与「内容与撰写要求」「各章节撰写要点」撰写**详细报告草稿**，保存为 `extracted_content/<竞品名>/report_draft.md`。草稿须充分引用已读文本中的要点、数据、案例；每节有要点、数据、案例或对比，可多用列表、子标题、表格；不必考虑 docx 版式。**② 再整理为 docx**：以 report_draft.md 为唯一正文来源，整理成目标 docx，应用 output_define 的字体、段落、标题层级与图/表注样式；**不得在整理时删减草稿中已有的要点**，仅做格式与段落组织。无材料的章节在草稿中即标 TODO，整理时保留。
+-**长草稿分段生成（避免单次输出过长失败）**：若大模型单次输出整份 report_draft.md 易超长或中途失败，应采用分段生成，避免反复整篇重试。推荐做法：**① 按章节分段**：每次只写一个或若干小节（如「只写 2.1、2.2 两节」），每段生成后**立即追加**写入 report_draft.md，或先写入 `extracted_content/<竞品名>/sections/` 下的小节文件（建议文件名带序号以控制顺序，如 01_公司概况.md、02_1.1_行业位置.md），再运行 **merge_report_sections.py** 合并为 report_draft.md；**② 先出大纲再填内容**：可先让模型只输出报告大纲（一、二级标题），再按大纲逐条请求「只写第 X 章 / 只写 2.1 节」并追加；**③ 失败时断点续写**：若某段生成失败，不要清空重来，用「已写到这里：…，请从下一节继续」从断点续写并追加。最终需得到**一份完整**的 report_draft.md，再交给 md_to_report_docx.py 整理为 docx。
 -迭代2. 【必须执行，不得省略】往目标文档中添加图片内容；**严禁仅凭 manifest 文字或文件名选图，否则会导致图文不匹配**。流程必须按以下顺序执行：
 --① 先阅读 2.2 形成的图片 manifest，按原始文档、页码、周边文字初步筛选与报告章节相关的**候选图片**（不在此步决定最终放置）。
 --② **【必须看图】** 对每一张候选图片，必须打开/查看图片内容（调用大模型看图或人工查看），根据**图片实际内容**判断：是否值得插入、应插入哪一章节、图注应写什么。图注必须与图片内容一致（如为架构图则写架构说明，为功能模块图则写模块说明），不得仅按 manifest 周边文字写图注。
@@ -73,6 +74,7 @@ docx、pptx 转 markdown 统一用 run_markitdown.py（不依赖系统 pandoc；
 | 用户只给竞品名/别名时 | resolve_competitor.py | --competitor | --print-dir-only | 得到 --ref-dir，作为 prepare_extraction 的 --ref-dir |
 | Step 3 写 docx 前 | report_stub.py | --competitor | --reports-root . --print-path-only --avoid-overwrite | 得到报告完整路径，用于写入 docx |
 | Step 3 迭代1（草稿→docx） | md_to_report_docx.py | --competitor | --draft、--out、--reports-root | 从 report_draft.md 生成符合 output_define 样式的 docx，不删减草稿要点 |
+| Step 3 迭代1（分段合并） | merge_report_sections.py | --sections-dir 或 --extracted-dir | --output | 将 sections/ 下小节 .md 按文件名顺序合并为 report_draft.md |
 | Step 3 迭代2（必须） | insert_report_images.py | docx路径、放置清单JSON | 无 | 按放置清单将图片插入 docx 对应章节并加图注 |
 | Step 2 完成后（可选） | validate_manifest.py | --extracted-dir（如 extracted_content/Inspur） | --report <路径> | 校验 images/ 与 manifest 是否一致 |
 | Step 2 完成后（可选） | merge_manifests.py | --extracted-dir | 无 | 将各文档的 manifest 合并为单一 images_manifest.md，便于 Step 3 选图时一次阅读 |
@@ -83,5 +85,5 @@ docx、pptx 转 markdown 统一用 run_markitdown.py（不依赖系统 pandoc；
 3. 抽取内容：在已激活虚拟环境的 shell 中调用 run_extraction.py --worklist extracted_content/Inspur/worklist.json 一次性完成所有文档的 run_markitdown + 抽图；或按 worklist 逐条手动执行 run_markitdown 与 extract_*_images。xlsx 用 Claude xlsx 技能。结果写入 extracted_root 下的 text/、images/，并维护图片 manifest。
 4. 若 worklist 的 links 非空：运行 fetch_links --worklist extracted_content/Inspur/worklist.json --output-dir extracted_content/Inspur/links；后续只读 links_index.md 与 links/*.html。
 5. 可选：validate_manifest --extracted-dir extracted_content/Inspur。
-6. Step 3 迭代1（两段式）：① **先通读** extracted_content/<竞品>/text/ 下**全部** .md 文件（可结合 docs_input.md），不得只读 1～2 个文件或只读开头就动笔。② 再写 **report_draft.md** 到 extracted_content/<竞品>/report_draft.md，按「内容与撰写要求」与「各章节撰写要点」充分展开，每节有要点/数据/案例/对比，可列表表格。③ 运行 **md_to_report_docx.py** 从草稿生成目标 docx（如 `python .../md_to_report_docx.py --competitor Inspur`），输出为 reports/<竞品>_v1.0_<日期>.docx；不删减草稿要点，仅应用 output_define 的文档风格（标题层级、首行缩进、字体字号等）。
+6. Step 3 迭代1（两段式）：① **先通读** extracted_content/<竞品>/text/ 下**全部** .md 文件（可结合 docs_input.md），不得只读 1～2 个文件或只读开头就动笔。② 再写 **report_draft.md** 到 extracted_content/<竞品>/report_draft.md，按「内容与撰写要求」与「各章节撰写要点」充分展开，每节有要点/数据/案例/对比，可列表表格；若采用分段撰写，可先写小节到 extracted_content/<竞品>/sections/（文件名建议带序号如 01_公司概况.md），再运行 **merge_report_sections.py --extracted-dir extracted_content/Inspur** 合并为 report_draft.md。③ 运行 **md_to_report_docx.py** 从草稿生成目标 docx（如 `python .../md_to_report_docx.py --competitor Inspur`），输出为 reports/<竞品>_v1.0_<日期>.docx；不删减草稿要点，仅应用 output_define 的文档风格（标题层级、首行缩进、字体字号等）。
 7. Step 3 迭代2（必须）：① 阅读 manifest 初选候选图（可先 merge_manifests 便于一次看全）。② **必须看图**：对每张候选图查看其实际内容，据此决定是否插入、插入哪一章、图注写什么（图注须与图片内容一致）；禁止用公司 LOGO/品牌图充当标准、架构、功能等说明图。③ **按四类章节系统选图**：至少覆盖 1.4 产品组合、2.1 架构、2.2 功能、2.9 标准（manifest 有合适图时每类至少 1 张）；不得只选 2 张应付。④ 编写图片放置清单，运行 insert_report_images.py 插入；插入后建议人工抽查 docx 确认图文一致。
