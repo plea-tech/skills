@@ -145,7 +145,8 @@ def main():
         if r.returncode == 0:
             print(f"  [OK] 文字完成 ({time.perf_counter() - doc_start:.1f}s)", flush=True)
         else:
-            print("  FAIL text", (r.stderr or r.stdout or "")[:200], file=sys.stderr)
+            err = (r.stderr or r.stdout or "").strip()
+            print("  FAIL text", err if len(err) <= 2000 else err[:2000] + "\n... (truncated)", file=sys.stderr)
 
         # 图片：按类型调用对应 extract_*_images
         has_images = doc_type in ("pdf", "docx", "pptx") and (
