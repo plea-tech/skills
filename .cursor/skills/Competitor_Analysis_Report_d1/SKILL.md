@@ -37,7 +37,7 @@ step 2. 运行抽取脚本, 抽取原始文件的内容，包括文字和图片.
 -可选：一般配图、截图。
 -不抽取: 图标, LOGO, 背景图片等.
 -抽取的每个图片形成单独的文件(png格式优先,尽量保证图片的清晰度),记录包括图片所在的原始文档,页码,周边文字. 并记录到 manifest 中.
--图片 manifest 默认按「一个源文档一个文件」生成（如 浪潮竞品分析v0_7_images_manifest.md），理由：每个文档单独跑一次抽图脚本，脚本只处理一个输入、写一个清单即可，无需合并或加锁；且选图时能直接看出某图来自哪份材料。若希望 Step 3 选图时只读一个清单，可在 Step 2 完成后运行 merge_manifests.py 合并为单一 images_manifest.md。
+-图片 manifest 默认按「一个源文档一个文件」生成（如 浪潮竞品分析v0_7_images_manifest.md），理由：每个文档单独跑一次抽图脚本，脚本只处理一个输入、写一个清单即可，无需合并或加锁；且选图时能直接看出某图来自哪份材料。若希望 Step 3 选图时只读一个清单，可在 Step 2 完成后运行 merge_manifests.py 合并为单一 images_manifest.md。**网页链接**中的图片可通过 fetch_links.py 加 **--with-images --min-size 120** 抓取到 images/ 并生成 links_images_manifest.md，与文档 manifest 一并参与 merge_manifests 与选图；若目标站 HTTPS 证书过期或自签名，可加 **--insecure** 跳过证书校验（仅建议在可信环境使用）。
 step 3. 根据 output_define.md 的要求，形成目标文档. 目标文档以中文为主，**版式与样式须符合 output_define.md 的文档风格定义**. 采用**两段式撰写**，避免在写 docx 时再次压缩内容：
 -迭代1（两段式）. **【撰写前必须先通读全部抽取文本】** 写草稿前，必须先**逐一阅读** `extracted_content/<竞品名>/text/` 下的**全部** .md 文件（可结合 references 下该竞品的 docs_input.md 理解每份文档用途），不得只读 1～2 个文件或只读开头几段就动笔；与大纲某章节明显相关的段落必须读到并考虑是否写入草稿。**禁止敷衍阅读**：仅扫一眼目录或前几段即开始写，会导致内容单薄、遗漏来源，视为未达标。
 -迭代1（两段式）续. **① 先写详细 markdown 草稿**：在完成上述通读后，按 output_define 的大纲与「内容与撰写要求」「各章节撰写要点」撰写**详细报告草稿**，保存为 `extracted_content/<竞品名>/report_draft.md`。草稿须充分引用已读文本中的要点、数据、案例；每节有要点、数据、案例或对比，可多用列表、子标题、表格；不必考虑 docx 版式。**② 再整理为 docx**：以 report_draft.md 为唯一正文来源，整理成目标 docx，应用 output_define 的字体、段落、标题层级与图/表注样式；**不得在整理时删减草稿中已有的要点**，仅做格式与段落组织。无材料的章节在草稿中即标 TODO，整理时保留。
@@ -70,7 +70,7 @@ docx、pptx 转 markdown 统一用 run_markitdown.py（不依赖系统 pandoc；
 | DOCX 图片抽取（Step 2 中） | extract_docx_images.py | docx路径、输出目录 | --min-size 120、--manifest <路径> | 从 DOCX 抽取内嵌图片并生成 manifest（序号、所在段落文字） |
 | PPTX 图片抽取（Step 2 中） | extract_pptx_images.py | pptx路径、输出目录 | --min-size 120、--manifest <路径> | 从 PPTX 抽取内嵌图片并生成 manifest（幻灯片号、该页原文摘要） |
 | PDF 图片抽取（Step 2 中） | extract_pdf_images.py | pdf路径、输出目录 | --min-size 120、--manifest <路径> | 从 PDF 抽取内嵌图片；--min-size 120 过滤小图（LOGO/图标） |
-| 需网页时（Step 2 中） | fetch_links.py | --output-dir（如 extracted_content/Inspur/links） | --worklist 或 --ref-dir | 生成 links/ 与 links_index.md；后续只读本地文件 |
+| 需网页时（Step 2 中） | fetch_links.py | --output-dir（如 extracted_content/Inspur/links） | --worklist 或 --ref-dir；--with-images --min-size 120 同时抓网页内图片并生成 links_images_manifest.md；目标站证书异常时加 --insecure 跳过 HTTPS 校验 | 生成 links/ 与 links_index.md；加 --with-images 时另生成 images/ 与 links_images_manifest.md，可与 merge_manifests 合并 |
 | 用户只给竞品名/别名时 | resolve_competitor.py | --competitor | --print-dir-only | 得到 --ref-dir，作为 prepare_extraction 的 --ref-dir |
 | Step 3 写 docx 前 | report_stub.py | --competitor | --reports-root . --print-path-only --avoid-overwrite | 得到报告完整路径，用于写入 docx |
 | Step 3 迭代1（草稿→docx） | md_to_report_docx.py | --competitor | --draft、--out、--reports-root | 从 report_draft.md 生成符合 output_define 样式的 docx，不删减草稿要点 |
@@ -83,7 +83,7 @@ docx、pptx 转 markdown 统一用 run_markitdown.py（不依赖系统 pandoc；
 1. 若只有竞品名：先运行 resolve_competitor --competitor Inspur --print-dir-only，将输出作为 ref_dir。
 2. 运行 prepare_extraction --ref-dir <ref_dir> --output-base . ；得到 worklist.json。
 3. 抽取内容：在已激活虚拟环境的 shell 中调用 run_extraction.py --worklist extracted_content/Inspur/worklist.json 一次性完成所有文档的 run_markitdown + 抽图；或按 worklist 逐条手动执行 run_markitdown 与 extract_*_images。xlsx 用 Claude xlsx 技能。结果写入 extracted_root 下的 text/、images/，并维护图片 manifest。
-4. 若 worklist 的 links 非空：运行 fetch_links --worklist extracted_content/Inspur/worklist.json --output-dir extracted_content/Inspur/links；后续只读 links_index.md 与 links/*.html。
+4. 若 worklist 的 links 非空：运行 fetch_links --worklist extracted_content/Inspur/worklist.json --output-dir extracted_content/Inspur/links（需同时抓网页内图片时加 --with-images --min-size 120；目标站证书过期或自签名时加 --insecure）；后续只读 links_index.md 与 links/*.html，若有 links_images_manifest.md 可参与 merge_manifests 与 Step 3 选图。
 5. 可选：validate_manifest --extracted-dir extracted_content/Inspur。
 6. Step 3 迭代1（两段式）：① **先通读** extracted_content/<竞品>/text/ 下**全部** .md 文件（可结合 docs_input.md），不得只读 1～2 个文件或只读开头就动笔。② 再写 **report_draft.md** 到 extracted_content/<竞品>/report_draft.md，按「内容与撰写要求」与「各章节撰写要点」充分展开，每节有要点/数据/案例/对比，可列表表格；若采用分段撰写，可先写小节到 extracted_content/<竞品>/sections/（文件名建议带序号如 01_公司概况.md），再运行 **merge_report_sections.py --extracted-dir extracted_content/Inspur** 合并为 report_draft.md。③ 运行 **md_to_report_docx.py** 从草稿生成目标 docx（如 `python .../md_to_report_docx.py --competitor Inspur`），输出为 reports/<竞品>_v1.0_<日期>.docx；不删减草稿要点，仅应用 output_define 的文档风格（标题层级、首行缩进、字体字号等）。
 7. Step 3 迭代2（必须）：① 阅读 manifest 初选候选图（可先 merge_manifests 便于一次看全）。② **必须看图**：对每张候选图查看其实际内容，据此决定是否插入、插入哪一章、图注写什么（图注须与图片内容一致）；禁止用公司 LOGO/品牌图充当标准、架构、功能等说明图。③ **按四类章节系统选图**：至少覆盖 1.4 产品组合、2.1 架构、2.2 功能、2.9 标准（manifest 有合适图时每类至少 1 张）；不得只选 2 张应付。④ 编写图片放置清单，运行 insert_report_images.py 插入；插入后建议人工抽查 docx 确认图文一致。

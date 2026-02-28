@@ -8,10 +8,10 @@
 
 2. fetch_links（链接内容抓取与缓存）
 项目	说明
-职责	读取 links_input.md（或从 prepare_extraction 的 worklist 读链接列表），抓取网页内容并落盘，避免大模型多次直接请求外网；可做简单去重与缓存。
+职责	读取 links_input.md（或从 prepare_extraction 的 worklist 读链接列表），抓取网页内容并落盘，避免大模型多次直接请求外网；可做简单去重与缓存。可选（--with-images）解析页面中的图片并下载到 images/，生成 links_images_manifest.md 供 Step 3 选图。
 输入	竞品目录路径，或 links_input.md 路径，或 worklist 中的链接列表。
-输出	在 extracted_content/<竞品名>/links/ 下保存每个链接的内容（如 /<url_hash>.html 或转为 .md）；并生成 links_index.md：URL、标题、本地文件路径、抓取时间（可选）。若某链接失败，在索引中标记「抓取失败」并可选简短原因。
-大模型怎么用	Step 2 中需要用到网页信息时，先运行此脚本，再让大模型只读本地 links/ 和 links_index.md，无需自己请求 URL。
+输出	在 extracted_content/<竞品名>/links/ 下保存每个链接的内容（如 /<url_hash>.html）；并生成 links_index.md：URL、标题、本地文件路径、状态。若启用 --with-images，则在 images/ 下保存网页中的图片，并生成 links_images_manifest.md（可与 merge_manifests 合并）。若某链接失败，在索引中标记「抓取失败」。
+大模型怎么用	Step 2 中需要用到网页信息时，先运行此脚本，再让大模型只读本地 links/ 和 links_index.md，无需自己请求 URL。若需将网页图片纳入报告选图，请加 --with-images（建议 --min-size 120）；完成后可运行 merge_manifests 将 links 与文档 manifest 合并。
 
 3. （可选）validate_manifest（图片清单校验/合并）
 项目	说明
@@ -56,10 +56,14 @@ python .cursor/skills/Competitor_Analysis_Report_d1/scripts/prepare_extraction.p
 
 **2. fetch_links.py**
 
-- 作用：抓取 `links_input.md` 或 worklist 中的 URL，将网页保存到 `extracted_content/<竞品名>/links/`，并生成 `links_index.md`。
+- 作用：抓取 `links_input.md` 或 worklist 中的 URL，将网页保存到 `extracted_content/<竞品名>/links/`，并生成 `links_index.md`。可选同时抓取网页中的图片并生成 `links_images_manifest.md`，供 Step 3 与 docx/pdf/pptx 的 manifest 一起选图。
 - 参数：
   - `--output-dir`：必填，链接输出目录（即 `extracted_content/<竞品名>/links`）。
   - `--ref-dir` 或 `--worklist`：二选一。`--ref-dir` 为竞品目录（从中读 `links_input.md`）；`--worklist` 为 `worklist.json` 路径（从中读 `links` 列表）。
+  - `--with-images`：可选。解析每个页面的 `<img>`，将图片下载到 `images/`，并生成 `links_images_manifest.md`（可与 merge_manifests 合并）。
+  - `--images-dir`：与 `--with-images` 同用；默认 `output-dir` 的上级目录下的 `images`。
+  - `--min-size N`：与 `--with-images` 同用；宽或高小于 N 像素的图片不保存（默认 0；建议 120 过滤 logo/图标）。需安装 Pillow 才生效。
+  - `--manifest`：与 `--with-images` 同用；manifest 输出路径，默认 `extracted_content/<竞品名>/links_images_manifest.md`。
 
 示例：
 
@@ -69,7 +73,12 @@ python .cursor/skills/Competitor_Analysis_Report_d1/scripts/fetch_links.py --ref
 
 # 方式二：从 worklist.json 读链接列表
 python .cursor/skills/Competitor_Analysis_Report_d1/scripts/fetch_links.py --worklist extracted_content/Inspur/worklist.json --output-dir extracted_content/Inspur/links
+
+# 同时抓取网页中的图片到 images/ 并生成 links_images_manifest.md（建议加 --min-size 120 过滤小图）
+python .cursor/skills/Competitor_Analysis_Report_d1/scripts/fetch_links.py --worklist extracted_content/Inspur/worklist.json --output-dir extracted_content/Inspur/links --with-images --min-size 120
 ```
+# 推荐的测试方式
+python .cursor/skills/Competitor_Analysis_Report_d1/scripts/fetch_links.py --ref-dir .cursor/skills/Competitor_Analysis_Report_d1/references/Test --output-dir extracted_content/Test/links --with-images --min-size 120
 
 **3. run_extraction.py**（Step 2 批量抽取：按 worklist 执行 run_markitdown + extract_*_images）
 
